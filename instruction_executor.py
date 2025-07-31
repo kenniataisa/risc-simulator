@@ -26,7 +26,7 @@ class InstructionExecutor:
             0b1011: self._execute_shr,     # SHR Rd, Rm, #Im
             0b1100: self._execute_shl,     # SHL Rd, Rm, #Im
             0b1110: self._execute_push,    # PUSH Rn
-            0b1111: self._execute_pop,     # POP Rn
+            0b1111: self._execute_pop,     # POP Rd
             0b0010: self._execute_ldr,     # LDR Rd, [Rm]
             0b1101: self._execute_cmp,     # CMP Rm, Rn
         }
@@ -120,6 +120,9 @@ class InstructionExecutor:
         return True
     
     def _execute_cmp(self, instruction):
+        """
+        Z = (Rm = Rn); C = (Rm < Rn) (Opcode: 1101)
+        """
         rm = (instruction >> 4) & 0xF
         rn = instruction & 0xF
         
@@ -159,7 +162,7 @@ class InstructionExecutor:
         """
         # --- Lógica de Salto Condicional (J<cond>) ---
         
-        # A condição do salto é definida pelos bits 11-10 [cite: 67]
+        # A condição do salto é definida pelos bits 11-10
         cond = (instruction >> 10) & 0b11
         
         # O imediato é um valor de 8 bits com sinal
@@ -170,7 +173,7 @@ class InstructionExecutor:
         jump_name = "UNKNOWN"
         condition_met_str = ""
 
-        # JEQ (Jump if equal): Salta quando a flag zero está ativa [cite: 69]
+        # JEQ (Jump if equal): Salta quando a flag zero está ativa
         if cond == 0b00:
             jump_name = "JEQ"
             if self.flags['Z'] == 1:
@@ -212,7 +215,7 @@ class InstructionExecutor:
     
     def _execute_add(self, instruction):
         """
-        ADD Rd, Rm, Rn (Opcode: 0101)
+        Rd = Rm + Rn (Opcode: 0101)
         Soma o valor de Rm com o valor de Rn e armazena em Rd.
         Modifica as flags Z e C.
         """
@@ -226,7 +229,7 @@ class InstructionExecutor:
         # Garante que o resultado se mantenha em 16 bits (aritmética de complemento a 2)
         result &= 0xFFFF
         self.registers[rd] = result
-        # Atualização das flags [cite: 17, 18]
+        # Atualização das flags
         self.flags['Z'] = 1 if result == 0 else 0
         self.flags['C'] = 1 if result < val_rm else 0 # Carry para adição sem sinal
         print(f"Instrução: ADD R{rd}, R{rm}, R{rn} -> Resultado=0x{result:04X}, Z={self.flags['Z']}, C={self.flags['C']}")
@@ -248,7 +251,7 @@ class InstructionExecutor:
         # Garante que o resultado se mantenha em 16 bits (aritmética de complemento a 2)
         result &= 0xFFFF
         self.registers[rd] = result
-        # Atualização das flags [cite: 17, 18]
+        # Atualização das flags
         self.flags['Z'] = 1 if result == 0 else 0
         self.flags['C'] = 1 if result < val_rm else 0 # Carry para adição sem sinal
         print(f"Instrução: ADDI R{rd}, R{rm}, #{imm} (0x{imm:X}) -> Resultado=0x{result:04X}, Z={self.flags['Z']}, C={self.flags['C']}")
@@ -272,7 +275,7 @@ class InstructionExecutor:
         # Armazena o dado na memória
         self.memory[memory_address] = data_to_store
         
-        # Rastreia o acesso à memória de dados para o relatório final [cite: 29]
+        # Rastreia o acesso à memória de dados para o relatório final
         self.accessed_memory.add(memory_address)
 
         print(f"Instrução: STR R{rn}, [R{rm}] -> MEM[0x{memory_address:04X}] = 0x{data_to_store:04X}")
@@ -311,7 +314,7 @@ class InstructionExecutor:
         result = self.registers[rm] & self.registers[rn]
 
         self.registers[rd] = result
-        # Atualização das flags [cite: 17, 18]
+        # Atualização das flags
         self.flags['Z'] = 1 if result == 0 else 0
         self.flags['C'] = 0  # A operação AND não gera carry
         print(f"Instrução: AND R{rd}, R{rm}, R{rn} -> Resultado=0x{result:04X}, Z={self.flags['Z']}, C={self.flags['C']}")
@@ -353,7 +356,7 @@ class InstructionExecutor:
         val_rm = self.registers[rm]
         result = (val_rm >> shift_amount)
         self.registers[rd] = result
-        # Atualização das flags [cite: 17, 18]
+        # Atualização das flags
         self.flags['Z'] = 1 if result == 0 else 0
         self.flags['C'] = 1 if (val_rm & (1 << (shift_amount - 1))) else 0
         print(f"Instrução: SHR R{rd}, R{rm}, {shift_amount} -> Resultado=0x{result:04X}, Z={self.flags['Z']}, C={self.flags['C']}")
@@ -371,7 +374,7 @@ class InstructionExecutor:
         val_rm = self.registers[rm]
         result = (val_rm << shift_amount) & 0xFFFF  # Garante que o resultado se mantenha em 16 bits
         self.registers[rd] = result
-        # Atualização das flags [cite: 17, 18]
+        # Atualização das flags
         self.flags['Z'] = 1 if result == 0 else 0
         self.flags['C'] = 1 if (val_rm & (1 << (16 - shift_amount - 1))) else 0
         print(f"Instrução: SHL R{rd}, R{rm}, {shift_amount} -> Resultado=0x{result:04X}, Z={self.flags['Z']}, C={self.flags['C']}")
@@ -395,18 +398,18 @@ class InstructionExecutor:
     
     def _execute_pop(self, instruction):
         """
-        Rn = MEM[SP]; SP++ (Opcode: 1111)
-        Desempilha o valor do topo da pilha para o registrador Rn.
+        Rd = MEM[SP]; SP++ (Opcode: 1111)
+        Desempilha o valor do topo da pilha para o registrador Rd.
         Modifica o ponteiro de pilha (SP).
         """
-        rn = instruction & 0xF
+        rd = (instruction >> 8) & 0xF
         stack_address = self.registers[self._simulator.SP]
         data_popped = self.memory.get(stack_address, 0)
         # Armazena o dado no registrador
-        self.registers[rn] = data_popped
+        self.registers[rd] = data_popped
         # Incrementa o SP (pilha descendente)
         self.registers[self._simulator.SP] += 1
-        print(f"Instrução: POP R{rn} -> R{rn} = 0x{data_popped:04X}, Novo SP=0x{self.registers[self._simulator.SP]:04X}")
+        print(f"Instrução: POP R{rd} -> R{rd} = 0x{data_popped:04X}, Novo SP=0x{self.registers[self._simulator.SP]:04X}")
         return True
     
     def _execute_ldr(self, instruction):
@@ -429,7 +432,7 @@ class InstructionExecutor:
         self.registers[rd] = loaded_data
         
         # Rastreia o acesso à memória de dados para o relatório final 
-        self.accessed_data_memory.add(memory_address)
+        self.accessed_memory.add(memory_address)
 
         print(f"Instrução: LDR R{rd}, [R{rm}] -> R{rd} = MEM[0x{memory_address:04X}] (Valor=0x{loaded_data:04X})")
         return True

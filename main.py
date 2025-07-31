@@ -59,24 +59,21 @@ class RISCSimulator:
         """
         Exibe o estado final do simulador, conforme especificado no trabalho.
         """
-        print("\n--- Fim da Execução ---")
-        print("Estado final do simulador:")
-
         # 1. Exibir Registradores 
-        print("\n[ Registradores ]")
+        print("\nRegistradores")
         for i in range(14): # R0 a R13
             print(f"R{i}: 0x{self.registers[i]:04X}")
         print(f"SP: 0x{self.registers[SP]:04X}") # R14
         print(f"PC: 0x{self.registers[PC]:04X}") # R15
         
         # 2. Exibir Flags [cite: 35]
-        print("\n[ Flags ]")
-        print(f"Z (Zero): {self.flags['Z']}")
-        print(f"C (Carry): {self.flags['C']}")
+        print("\nFlags")
+        print(f"Z: {self.flags['Z']}")
+        print(f"C: {self.flags['C']}")
 
         # 3. Exibir Memória de Dados Acessada 
         if self.accessed_data_memory:
-            print("\n[ Memória de Dados Acessada ]")
+            print("\nMemória de Dados:")
             # Ordena os endereços para uma exibição consistente
             for addr in sorted(list(self.accessed_data_memory)):
                 print(f"0x{addr:04X}: 0x{self.memory.get(addr, 0):04X}")
@@ -89,9 +86,6 @@ class RISCSimulator:
             while current_sp < 0x8000:
                  print(f"0x{current_sp:04X}: 0x{self.memory.get(current_sp, 0):04X}")
                  current_sp += 1 # A pilha tem alinhamento de 16 bits (2 bytes), mas endereçamento é por palavra
-        else:
-            print("\n[ Pilha ]")
-            print("A pilha não foi utilizada (SP permaneceu em 0x8000).")
 
 
     def sign_extend(self, value, bits):
@@ -131,21 +125,59 @@ class RISCSimulator:
 
 if __name__ == "__main__":
     
+    # Exemplo 4 dos casos de teste
     program_code = """
-    0000:0x410A
-    0001:0x420A
-    0002:0x7312
-    0003:0x1402
-    0004:0x4464
-    0005:0x45C8
-    0006:0xFFFF
+    0000:0x4AF0
+    0001:0xCBA8
+    0002:0x6CB1
+    0003:0x21C0
+    0004:0xE001
+    0005:0x4D00
+    0006:0xD01D
+    0007:0x1005
+    0008:0x25C0
+    0009:0x30A5
+    000A:0x6AA1
+    000B:0x8111
+    000C:0x0FF9
+    000D:0xF100
+    000E:0x70A1
+    000F:0x6AF2
+    0010:0xE00A
+    0011:0x0003
+    0012:0x6CB3
+    0013:0x30C0
+    0014:0xFFFF
+    0015:0xE004
+    0016:0xE005
+    0017:0x6410
+    0018:0x1007
+    0019:0x4400
+    001A:0x2500
+    001B:0x5445
+    001C:0x6001
+    001D:0x8111
+    001E:0x17FB
+    001F:0x6040
+    0020:0xF500
+    0021:0xF400
+    0022:0xFF00
+    """
+
+    # Exemplo 1 do PDF
+    other_program_code = """
+    0000:0x4003
+    0001:0x6202
+    0002:0x4A0A
+    0003:0x3002
+    0004:0xFFFF
     """
 
     # Cria uma instância do simulador
     simulator = RISCSimulator()
 
     # Carrega o programa de exemplo
-    simulator.load_program_from_hex_string(program_code)
+    simulator.load_program_from_hex_string(other_program_code)
     
     # Executa o simulador
     simulator.run()
