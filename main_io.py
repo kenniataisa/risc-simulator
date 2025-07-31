@@ -1,0 +1,237 @@
+from instruction_executor import InstructionExecutor
+
+SP = 14  # Stack Pointer (Ponteiro de Pilha)
+PC = 15  # Program Counter (Contador de Programa)
+
+class RISCSimulator:
+    """
+    Simulador para um processador RISC de 16 bits.
+    """
+
+    def __init__(self, input_filepath=None, output_filepath=None):
+        """
+        Inicializa todos os componentes do processador.
+        """
+        # 16 registradores de 16 bits, todos iniciam em 0 
+        self.registers = [0] * 16
+
+        # O ponteiro de pilha (SP) inicia no endereço 0x8000
+        self.registers[SP] = 0x8000
+
+        # Flags de estado, ambas iniciam em 0
+        self.flags = {'Z': 0, 'C': 0}
+        
+        # A memória é um dicionário para simular um espaço de endereçamento.
+        self.memory = {}
+
+        # Conjunto para rastrear posições de memória de dados acessadas, para o relatório final
+        self.accessed_data_memory = set()
+        
+        # Constantes de registradores especiais
+        self.SP = SP
+        self.PC = PC
+        
+        self.input_buffer = ""
+        try:
+            if input_filepath:
+                with open(input_filepath, 'r') as f:
+                    self.input_buffer = f.read()
+        except FileNotFoundError:
+            print(f"AVISO: Arquivo de entrada '{input_filepath}' não encontrado. Leitura de E/S retornará 0.")
+        
+        self.input_char_iterator = iter(self.input_buffer)
+        self.input_line_iterator = iter(self.input_buffer.splitlines())
+
+        self.output_file_handler = None
+        if output_filepath:
+            self.output_file_handler = open(output_filepath, 'w')
+
+        # Inicializa o executor de instruções
+        self.instruction_executor = InstructionExecutor(self)
+
+    def load_program_from_hex_string(self, hex_code_string):
+        """
+        Carrega um programa na memória a partir de uma string multilinhas.
+
+        O formato esperado é '<endereço>:<conteúdo>' em hexadecimal.
+        Linhas vazias ou que não seguem o formato são ignoradas.
+        """
+        print("--- Carregando Programa na Memória ---")
+        lines = hex_code_string.strip().split('\n')
+        for line in lines:
+            if ':' in line:
+                try:
+                    addr_str, content_str = line.split(':')
+                    addr = int(addr_str, 16)
+                    content = int(content_str, 16)
+                    self.memory[addr] = content
+                    print(f"Endereço {addr:04X}h: {content:04X}h")
+                except ValueError:
+                    print(f"AVISO: Linha ignorada por erro de formato: '{line}'")
+        print("--- Carga Finalizada ---\n")
+
+    def print_final_state(self):
+        """
+        Exibe o estado final do simulador, conforme especificado no trabalho.
+        """
+        # 1. Exibir Registradores 
+        print("\nRegistradores")
+        for i in range(14): # R0 a R13
+            print(f"R{i}: 0x{(self.registers[i] & 0xFFFF) :04X}")
+        print(f"SP: 0x{(self.registers[SP] & 0xFFFF):04X}") # R14
+        print(f"PC: 0x{(self.registers[PC] & 0xFFFF):04X}") # R15
+        
+        # 2. Exibir Flags [cite: 35]
+        print("\nFlags")
+        print(f"Z: {self.flags['Z']}")
+        print(f"C: {self.flags['C']}")
+
+        # 3. Exibir Memória de Dados Acessada 
+        if self.accessed_data_memory:
+            print("\nMemória de Dados:")
+            # Ordena os endereços para uma exibição consistente
+            for addr in sorted(list(self.accessed_data_memory)):
+                print(f"0x{addr:04X}: 0x{(self.memory.get(addr, 0) & 0xFFFF):04X}")
+            
+        # 4. Exibir Pilha (se usada) 
+        if self.registers[SP] != 0x8000:
+            print("\n[ Pilha ]")
+            # A pilha é descendente, então exibimos do SP até a base 0x8000
+            current_sp = self.registers[SP]
+            while current_sp < 0x8000:
+<<<<<<< HEAD
+                print(f"0x{current_sp:04X}: 0x{(self.memory.get(current_sp, 0) & 0xFFFF):04X}")
+                current_sp += 1 # A pilha tem alinhamento de 16 bits (2 bytes), mas endereçamento é por palavra
+        else:
+            print("\n[ Pilha ]")
+            print("A pilha não foi utilizada (SP permaneceu em 0x8000).")
+=======
+                 print(f"0x{current_sp:04X}: 0x{self.memory.get(current_sp, 0):04X}")
+                 current_sp += 1 # A pilha tem alinhamento de 16 bits (2 bytes), mas endereçamento é por palavra
+>>>>>>> c8378e7bf7dcf3a625326a4fd7df41fba33e5904
+
+
+    def sign_extend(self, value, bits):
+        """
+        Estende o sinal de um número de 'bits' para o tamanho de um inteiro do Python.
+        Necessário para tratar imediatos com sinal (e.g., em saltos).
+        """
+        sign_bit = 1 << (bits - 1)
+        # Se o bit de sinal estiver ligado, preenche os bits superiores com 1
+        if (value & sign_bit) != 0:
+            return value - (1 << bits)
+        return value
+
+    def cleanup(self):
+        if self.output_file_handler:
+            self.output_file_handler.close()
+            print(f"\nDados salvos em '{self.output_file_handler.name}'.")
+
+
+    def run(self):
+        """
+        Inicia o ciclo de busca, decodificação e execução das instruções.
+        O ciclo continua até encontrar a instrução HALT (0xFFFF).
+        """
+        running = True
+        print("--- Iniciando Execução do Simulador ---\n")
+        
+        try: 
+            while running:
+                # 1. BUSCA (Fetch)
+                pc_address = self.registers[PC]
+                instruction = self.memory.get(pc_address, 0)
+
+                print(f"Executando em PC=0x{pc_address:04X} -> Instrução=0x{instruction:04X}")
+
+                # 2. INCREMENTO DO PC
+                self.registers[PC] += 1
+                
+                # 3. DECODIFICAÇÃO E EXECUÇÃO (Decode & Execute)
+                running = self.instruction_executor.execute_instruction(instruction)
+        finally:
+            self.cleanup()
+
+        self.print_final_state()
+
+
+if __name__ == "__main__":
+    
+<<<<<<< HEAD
+    program_code_para_teste_io = """
+    0000:0x4001
+    0001:0x4103
+    0002:0x45F0
+    0003:0xC558
+    0004:0x5050
+    0005:0x5151
+    0006:0x2201  
+    0007:0x2401  
+    0008:0x5324  
+    0009:0x3310  
+    000A:0xFFFF
+=======
+    # Exemplo 4 dos casos de teste
+    program_code = """
+    0000:0x4AF0
+    0001:0xCBA8
+    0002:0x6CB1
+    0003:0x21C0
+    0004:0xE001
+    0005:0x4D00
+    0006:0xD01D
+    0007:0x1005
+    0008:0x25C0
+    0009:0x30A5
+    000A:0x6AA1
+    000B:0x8111
+    000C:0x0FF9
+    000D:0xF100
+    000E:0x70A1
+    000F:0x6AF2
+    0010:0xE00A
+    0011:0x0003
+    0012:0x6CB3
+    0013:0x30C0
+    0014:0xFFFF
+    0015:0xE004
+    0016:0xE005
+    0017:0x6410
+    0018:0x1007
+    0019:0x4400
+    001A:0x2500
+    001B:0x5445
+    001C:0x6001
+    001D:0x8111
+    001E:0x17FB
+    001F:0x6040
+    0020:0xF500
+    0021:0xF400
+    0022:0xFF00
+    """
+
+    # Exemplo 1 do PDF
+    other_program_code = """
+    0000:0x4003
+    0001:0x6202
+    0002:0x4A0A
+    0003:0x3002
+    0004:0xFFFF
+>>>>>>> c8378e7bf7dcf3a625326a4fd7df41fba33e5904
+    """
+
+    input_filepath = "entrada.txt"
+    output_filepath = "saida.txt"
+
+    # Cria uma instância do simulador
+    simulator = RISCSimulator(input_filepath=input_filepath, output_filepath=output_filepath)
+
+    # Carrega o programa de exemplo
+<<<<<<< HEAD
+    simulator.load_program_from_hex_string(program_code_para_teste_io)
+=======
+    simulator.load_program_from_hex_string(other_program_code)
+>>>>>>> c8378e7bf7dcf3a625326a4fd7df41fba33e5904
+    
+    # Executa o simulador
+    simulator.run()
